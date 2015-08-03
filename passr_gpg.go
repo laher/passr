@@ -12,39 +12,6 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-var filename = "file.gpg"
-
-const message = "testing123"
-
-var testEncryptionTests = []struct {
-	keyRingHex string
-	isSigned   bool
-}{
-	{
-		testKeys1And2PrivateHex,
-		false,
-	},
-	{
-		testKeys1And2PrivateHex,
-		true,
-	},
-	{
-		dsaElGamalTestKeysHex,
-		false,
-	},
-	{
-		dsaElGamalTestKeysHex,
-		true,
-	},
-}
-
-func main() {
-	for i, test := range testEncryptionTests {
-		if i == 0 {
-			enc(i, test.keyRingHex, test.isSigned)
-		}
-	}
-}
 func readerFromHex(s string) io.Reader {
 	data, err := hex.DecodeString(s)
 	if err != nil {
@@ -52,10 +19,11 @@ func readerFromHex(s string) io.Reader {
 	}
 	return bytes.NewBuffer(data)
 }
-func enc(i int, keyRingHex string, isSigned bool) error {
+
+func enc(i int, keyRingHex string, isSigned bool, filename string, message string, passphraseS string) error {
 	kring, _ := openpgp.ReadKeyRing(readerFromHex(keyRingHex))
 
-	passphrase := []byte("passphrase")
+	passphrase := []byte(passphraseS)
 	for _, entity := range kring {
 		if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
 			err := entity.PrivateKey.Decrypt(passphrase)
