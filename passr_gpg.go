@@ -1,4 +1,4 @@
-package main
+package passr
 
 import (
 	"bytes"
@@ -12,30 +12,34 @@ import (
 	"github.com/Sirupsen/logrus"
 )
 
-func readerFromHex(s string) io.Reader {
+func ReaderFromHex(s string) io.Reader {
 	data, err := hex.DecodeString(s)
 	if err != nil {
-		panic("readerFromHex: bad input")
+		panic("ReaderFromHex: bad input")
 	}
 	return bytes.NewBuffer(data)
 }
 
 func enc(i int, keyRingHex string, isSigned bool, filename string, message string, passphraseS string) error {
-	kring, _ := openpgp.ReadKeyRing(readerFromHex(keyRingHex))
-
+	kring, _ := openpgp.ReadKeyRing(ReaderFromHex(keyRingHex))
 	passphrase := []byte(passphraseS)
+	return Encrypt(i, kring, isSigned, filename, message, passphrase)
+}
+
+func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, message string, passphrase []byte) error {
+
 	for _, entity := range kring {
 		if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
 			err := entity.PrivateKey.Decrypt(passphrase)
 			if err != nil {
-				logrus.Errorf("#%d: failed to decrypt key", i)
+				logrus.Errorf("#%d: failed to decrypt key", index)
 			}
 		}
 		for _, subkey := range entity.Subkeys {
 			if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
 				err := subkey.PrivateKey.Decrypt(passphrase)
 				if err != nil {
-					logrus.Errorf("#%d: failed to decrypt subkey", i)
+					logrus.Errorf("#%d: failed to decrypt subkey", index)
 				}
 			}
 		}
@@ -49,40 +53,44 @@ func enc(i int, keyRingHex string, isSigned bool, filename string, message strin
 	//buf := new(bytes.Buffer)
 	f, err := os.Create(filename)
 	if err != nil {
-		logrus.Errorf("#%d: error in Create: %s", i, err)
+		logrus.Errorf("#%d: error in Create: %s", index, err)
 		return err
 	}
 	w, err := openpgp.Encrypt(f, kring[:1], signed, nil /* no hints */, nil)
 	if err != nil {
-		logrus.Errorf("#%d: error in Encrypt: %s", i, err)
+		logrus.Errorf("#%d: error in Encrypt: %s", index, err)
 		return err
 	}
 
 	_, err = w.Write([]byte(message))
 	if err != nil {
-		logrus.Errorf("#%d: error writing plaintext: %s", i, err)
+		logrus.Errorf("#%d: error writing plaintext: %s", index, err)
 		return err
 	}
 	err = w.Close()
 	if err != nil {
-		logrus.Errorf("#%d: error closing WriteCloser: %s", i, err)
+		logrus.Errorf("#%d: error closing WriteCloser: %s", index, err)
 		return err
 	}
 	err = f.Close()
 	if err != nil {
-		logrus.Errorf("#%d: error closing file: %s", i, err)
+		logrus.Errorf("#%d: error closing file: %s", index, err)
 		return err
 	}
+	return nil
+}
+
+func Decrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, passphrase []byte) (string, error) {
 	f2, err := os.Open(filename)
 	if err != nil {
-		logrus.Errorf("#%d: error in Create: %s", i, err)
-		return err
+		logrus.Errorf("#%d: error in Create: %s", index, err)
+		return "", err
 	}
 
 	md, err := openpgp.ReadMessage(f2, kring, nil /* no prompt */, nil)
 	if err != nil {
-		logrus.Errorf("#%d: error reading message: %s", i, err)
-		return err
+		logrus.Errorf("#%d: error reading message: %s", index, err)
+		return "", err
 	}
 
 	/*
@@ -98,33 +106,31 @@ func enc(i int, keyRingHex string, isSigned bool, filename string, message strin
 				}
 			}
 	*/
-
 	plaintext, err := ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
-		logrus.Errorf("#%d: error reading encrypted contents: %s", i, err)
-		return err
+		logrus.Errorf("#%d: error reading encrypted contents: %s", index, err)
+		return "", err
 	}
-
 	/*
-		encryptKey, _ := kring[0].encryptionKey(testTime)
-		expectedKeyId := encryptKey.PublicKey.KeyId
-		if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
-			logrus.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
+			encryptKey, _ := kring[0].encryptionKey(testTime)
+			expectedKeyId := encryptKey.PublicKey.KeyId
+			if len(md.EncryptedToKeyIds) != 1 || md.EncryptedToKeyIds[0] != expectedKeyId {
+				logrus.Errorf("#%d: expected message to be encrypted to %v, but got %#v", i, expectedKeyId, md.EncryptedToKeyIds)
+			}
+
+		if string(plaintext) != message {
+			logrus.Errorf("#%d: got: %s, want: %s", index, string(plaintext), message)
 		}
 	*/
 
-	if string(plaintext) != message {
-		logrus.Errorf("#%d: got: %s, want: %s", i, string(plaintext), message)
-	}
-
 	if isSigned {
 		if md.SignatureError != nil {
-			logrus.Errorf("#%d: signature error: %s", i, md.SignatureError)
+			logrus.Errorf("#%d: signature error: %s", index, md.SignatureError)
 		}
 		if md.Signature == nil {
 			logrus.Error("signature missing")
 		}
 	}
 
-	return nil
+	return string(plaintext), nil
 }

@@ -1,4 +1,4 @@
-package main
+package passr
 
 import "testing"
 
@@ -11,11 +11,11 @@ var testEncryptionTests = []struct {
 	isSigned   bool
 }{
 	{
-		testKeys1And2PrivateHex,
+		TestKeys1And2PrivateHex,
 		false,
 	},
 	{
-		testKeys1And2PrivateHex,
+		TestKeys1And2PrivateHex,
 		true,
 	},
 	{
