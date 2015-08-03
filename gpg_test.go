@@ -30,8 +30,6 @@ var testEncryptionTests = []struct {
 
 func Test1(t *testing.T) {
 	for i, test := range testEncryptionTests {
-		if i == 0 {
-			enc(i, test.keyRingHex, test.isSigned, filename, message, "passphrase")
-		}
+		enc(i, test.keyRingHex, test.isSigned, filename, message, "passphrase")
 	}
 }
