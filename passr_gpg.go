@@ -3,6 +3,7 @@ package passr
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -22,28 +23,32 @@ func ReaderFromHex(s string) io.Reader {
 
 func enc(i int, keyRingHex string, isSigned bool, filename string, message string, passphraseS string) error {
 	kring, _ := openpgp.ReadKeyRing(ReaderFromHex(keyRingHex))
-	passphrase := []byte(passphraseS)
-	return Encrypt(i, kring, isSigned, filename, message, passphrase)
+	return Encrypt(i, kring, isSigned, filename, message)
 }
 
-func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, message string, passphrase []byte) error {
-
+func DecryptPw(kring openpgp.EntityList, passphrase []byte) error {
 	for _, entity := range kring {
 		if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
 			err := entity.PrivateKey.Decrypt(passphrase)
 			if err != nil {
-				logrus.Errorf("#%d: failed to decrypt key", index)
+				logrus.Errorf("failed to decrypt key")
+				return err
 			}
 		}
 		for _, subkey := range entity.Subkeys {
 			if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
 				err := subkey.PrivateKey.Decrypt(passphrase)
 				if err != nil {
-					logrus.Errorf("#%d: failed to decrypt subkey", index)
+					logrus.Errorf("failed to decrypt subkey")
+					return err
 				}
 			}
 		}
 	}
+	return nil
+}
+
+func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, message string) error {
 
 	var signed *openpgp.Entity
 	if isSigned {
@@ -80,7 +85,18 @@ func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string
 	return nil
 }
 
+func Dec(keys []openpgp.Key, symmetric bool) ([]byte, error) {
+	fmt.Printf("keys: %+v, symm: %v", keys, symmetric)
+	return []byte("passphrase"), nil
+}
+
 func Decrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, passphrase []byte) (string, error) {
+
+	err := DecryptPw(kring, passphrase)
+	if err != nil {
+		return "", err
+	}
+
 	f2, err := os.Open(filename)
 	if err != nil {
 		logrus.Errorf("#%d: error in Create: %s", index, err)

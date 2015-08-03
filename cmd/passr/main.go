@@ -1,21 +1,15 @@
 package main
 
 import (
-	"crypto/rand"
 	"fmt"
-	"io"
 	"os"
 	"os/user"
 	"path/filepath"
-
-	"golang.org/x/crypto/openpgp"
+	"strings"
 )
-import (
-	"github.com/codegangsta/cli"
-	"github.com/laher/passr"
-)
+import "github.com/codegangsta/cli"
 
-const Folder = ".passr"
+const PassrDir = ".passr"
 
 //	fmt.Printf("Password: ")
 //	pass := gopass.GetPasswd() // Silent, for *'s use gopass.GetPasswdMasked()
@@ -28,28 +22,33 @@ func main() {
 	if err != nil {
 		fmt.Println("Error getting current user: %s", err)
 	}
-	f := filepath.Join(u.HomeDir, Folder)
-	fmt.Printf("dir: %s", f)
-	fmt.Println("")
+	passDir := filepath.Join(u.HomeDir, PassrDir)
+	hd := u.HomeDir
+	//fmt.Printf("dir: %s", f)
+	//fmt.Println("")
 	app.Commands = []cli.Command{
 		{
 			Name:    "list",
-			Aliases: []string{"l"},
+			Aliases: []string{"ls"},
 			Usage:   "list passwords",
 			Action: func(c *cli.Context) {
-				d, err := os.Open(f)
+				d, err := os.Open(passDir)
 				if err != nil {
-					fmt.Printf("Error opening %s: %s", f, err)
+					fmt.Printf("Error opening %s: %s", passDir, err)
 					fmt.Println("")
+					return
 				}
 				names, err := d.Readdirnames(100)
 				if err != nil {
-					fmt.Printf("Error reading %s: %s", f, err)
+					fmt.Printf("Error reading %s: %s", passDir, err)
 					fmt.Println("")
+					return
 				}
 				for _, name := range names {
-					fmt.Printf(" %s", name)
-					fmt.Println("")
+					if strings.HasSuffix(name, ".gpg") {
+						fmt.Printf(" %s", strings.Replace(name, ".gpg", "", 1))
+						fmt.Println("")
+					}
 				}
 			},
 		},
@@ -59,10 +58,11 @@ func main() {
 			Usage:   "create a repo",
 			Action: func(c *cli.Context) {
 
-				err = os.MkdirAll(f, 0750)
+				err = os.MkdirAll(passDir, 0750)
 				if err != nil {
-					fmt.Printf("Error creating %s: %s", Folder, err)
+					fmt.Printf("Error creating %s: %s", PassrDir, err)
 					fmt.Println("")
+					return
 				}
 			},
 		},
@@ -75,6 +75,7 @@ func main() {
 				if err != nil {
 					fmt.Printf("Error generating %s", err)
 					fmt.Println("")
+					return
 				}
 				fmt.Printf("Generated %s", p)
 				fmt.Println("")
@@ -82,13 +83,15 @@ func main() {
 		},
 		{
 			Name:    "insert",
-			Aliases: []string{"ins"},
+			Aliases: []string{"ins", "put"},
 			Usage:   "insert a password",
 			Action: func(c *cli.Context) {
-				err := insert(c.Args().First(), c.Args()[1])
+				publicKeyringFile := filepath.Join(hd, publicKeyring)
+				err := insert(publicKeyringFile, passDir, c.Args().First(), c.Args()[1])
 				if err != nil {
 					fmt.Printf("Error inserting %s", err)
 					fmt.Println("")
+					return
 				}
 				fmt.Printf("Inserted %s", c.Args().First())
 				fmt.Println("")
@@ -96,13 +99,15 @@ func main() {
 		},
 		{
 			Name:    "get",
-			Aliases: []string{"g"},
+			Aliases: []string{"g", "retrieve", "show"},
 			Usage:   "retrieve a password",
 			Action: func(c *cli.Context) {
-				p, err := retrieve(c.Args().First())
+				secretKeyringFile := filepath.Join(hd, secretKeyring)
+				p, err := retrieve(secretKeyringFile, passDir, c.Args().First())
 				if err != nil {
 					fmt.Printf("Error retrieving %s", err)
 					fmt.Println("")
+					return
 				}
 				fmt.Printf("Retrieved %s:", c.Args().First())
 				fmt.Println("")
@@ -113,47 +118,7 @@ func main() {
 	app.Run(os.Args)
 }
 
-func insert(name, pass string) error {
-	message := pass
-	filename := fmt.Sprintf("%s.gpg", name)
-	keyRingHex := passr.TestKeys1And2PrivateHex
-	kring, _ := openpgp.ReadKeyRing(passr.ReaderFromHex(keyRingHex))
-	passphrase := []byte("passphrase")
-	err := passr.Encrypt(0, kring, false, filename, message, passphrase)
-	return err
-}
-
-func retrieve(name string) (string, error) {
-	filename := fmt.Sprintf("%s.gpg", name)
-	keyRingHex := passr.TestKeys1And2PrivateHex
-	kring, _ := openpgp.ReadKeyRing(passr.ReaderFromHex(keyRingHex))
-	passphrase := []byte("passphrase")
-	p, err := passr.Decrypt(0, kring, false, filename, passphrase)
-	return p, err
-}
+const secretKeyring = ".gnupg/secring.gpg"
+const publicKeyring = ".gnupg/pubring.gpg"
 
 var StdChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+,.?/:;{}[]`~")
-
-func generate(length int, chars []byte) (string, error) {
-	pword := make([]byte, length)
-	buf := make([]byte, length+(length/4))
-	clen := byte(len(chars))
-	maxrb := byte(256 - (256 % len(chars)))
-	i := 0
-	for {
-		if _, err := io.ReadFull(rand.Reader, buf); err != nil {
-			return "", err
-		}
-		for _, c := range buf {
-			if c >= maxrb {
-				continue
-			}
-			pword[i] = chars[c%clen]
-			i++
-			if i == length {
-				return string(pword), nil
-			}
-		}
-	}
-	return "", fmt.Errorf("Random data not found")
-}
