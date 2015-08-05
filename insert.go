@@ -26,8 +26,6 @@ func Insert(publicKeyringFile, fdir, name, pass string) error {
 	if err != nil {
 		return err
 	}
-	//keyRingHex := passr.TestKeys1And2PrivateHex
-	//kring, _ := openpgp.ReadKeyRing(passr.ReaderFromHex(keyRingHex))
 	err = Encrypt(0, kring, false, filename, message)
 	return err
 }

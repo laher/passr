@@ -31,7 +31,7 @@ func main() {
 	app.Commands = []cli.Command{
 		{
 			Name:    "list",
-			Aliases: []string{"ls"},
+			Aliases: []string{"ls", "l"},
 			Usage:   "list passwords",
 			Action: func(c *cli.Context) {
 				passr.ListPasses(passDir)
@@ -53,6 +53,13 @@ func main() {
 				p, err := passr.GenerateDef()
 				if err != nil {
 					fmt.Printf("Error generating %s", err)
+					fmt.Println("")
+					return
+				}
+				publicKeyringFile := filepath.Join(hd, publicKeyring)
+				err = passr.Insert(publicKeyringFile, passDir, c.Args().First(), p)
+				if err != nil {
+					fmt.Printf("Error inserting %s", err)
 					fmt.Println("")
 					return
 				}
@@ -88,10 +95,7 @@ func main() {
 					fmt.Println("")
 					return
 				}
-				fmt.Printf("Retrieved %s:", c.Args().First())
-				fmt.Println("")
 				fmt.Printf("%s", p)
-				fmt.Println("")
 			},
 		}}
 	err = app.Run(os.Args)

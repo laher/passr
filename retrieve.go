@@ -29,7 +29,7 @@ func Retrieve(secretKeyringFile, fdir, name string) (string, error) {
 		return "", err
 	}
 	//passphrase := []byte("passphrase")
-	fmt.Println("Enter passphrase:")
+	log.Println("Enter passphrase:")
 	passphrase := gopass.GetPasswd()
 	p, err := Decrypt(0, kring, false, filename, passphrase)
 	return p, err
