@@ -12,8 +12,6 @@ import (
 	"github.com/laher/passr"
 )
 
-const PassrDir = ".passr"
-
 //	fmt.Printf("Password: ")
 //	pass := gopass.GetPasswd() // Silent, for *'s use gopass.GetPasswdMasked()
 // Do something with pass
@@ -25,10 +23,14 @@ func main() {
 	if err != nil {
 		fmt.Println("Error getting current user: %s", err)
 	}
-	passDir := filepath.Join(u.HomeDir, PassrDir)
 	hd := u.HomeDir
 	//fmt.Printf("dir: %s", f)
 	//fmt.Println("")
+	config := passr.DefaultConfig()
+	passDir := filepath.Join(u.HomeDir, config.PassDir)
+	publicKeyringFile := filepath.Join(hd, config.PubKeyring)
+	secretKeyringFile := filepath.Join(hd, config.PrivKeyring)
+	keyName := config.KeyId
 	app.Commands = []cli.Command{
 		{
 			Name:    "list",
@@ -56,7 +58,6 @@ func main() {
 					logrus.Errorf("Error generating %s", err)
 					return
 				}
-				publicKeyringFile := filepath.Join(hd, publicKeyring)
 				err = passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), p)
 				if err != nil {
 					logrus.Errorf("Error inserting %s", err)
@@ -71,7 +72,6 @@ func main() {
 			Aliases: []string{"i", "ins", "put"},
 			Usage:   "insert a password",
 			Action: func(c *cli.Context) {
-				publicKeyringFile := filepath.Join(hd, publicKeyring)
 				err := passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), c.Args()[1])
 				if err != nil {
 					logrus.Errorf("Error inserting %s", err)
@@ -86,7 +86,6 @@ func main() {
 			Aliases: []string{"r", "retrieve", "show"},
 			Usage:   "retrieve a password",
 			Action: func(c *cli.Context) {
-				secretKeyringFile := filepath.Join(hd, secretKeyring)
 				p, err := passr.Retrieve(secretKeyringFile, keyName, passDir, c.Args().First())
 				if err != nil {
 					logrus.Errorf("Error retrieving %s", err)
@@ -101,7 +100,3 @@ func main() {
 		os.Exit(1)
 	}
 }
-
-const secretKeyring = ".gnupg/secring.gpg"
-const publicKeyring = ".gnupg/pubring.gpg"
-const keyName = "78C56BB6"
