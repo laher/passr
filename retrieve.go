@@ -2,10 +2,10 @@ package passr
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/howeyc/gopass"
 	"golang.org/x/crypto/openpgp"
 )
@@ -21,7 +21,7 @@ func Retrieve(secretKeyringFile, keyName, fdir, name string) (string, error) {
 	defer func() {
 		err := keyringFileBuffer.Close()
 		if err != nil {
-			log.Printf("Error closing file %s", err)
+			logrus.Errorf("Error closing file %s", err)
 		}
 	}()
 	kring, err := openpgp.ReadKeyRing(keyringFileBuffer)
@@ -29,7 +29,7 @@ func Retrieve(secretKeyringFile, keyName, fdir, name string) (string, error) {
 		return "", err
 	}
 	//passphrase := []byte("passphrase")
-	log.Println("Enter passphrase:")
+	logrus.Infof("Enter passphrase:")
 	passphrase := gopass.GetPasswd()
 	p, err := Decrypt(0, kring, keyName, false, filename, passphrase)
 	return p, err

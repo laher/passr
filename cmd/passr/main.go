@@ -37,7 +37,11 @@ func main() {
 			Aliases: []string{"ls", "l"},
 			Usage:   "list passwords",
 			Action: func(c *cli.Context) {
-				passr.ListPasses(passDir)
+				err := passr.ListPasses(passDir)
+				if err != nil {
+					logrus.Errorf("Error listing passes %s", err)
+					return
+				}
 			},
 		},
 		{
@@ -45,7 +49,11 @@ func main() {
 			Aliases: []string{"prep"},
 			Usage:   "Prepare a repo",
 			Action: func(c *cli.Context) {
-				passr.InitRepo(passDir)
+				err := passr.InitRepo(passDir)
+				if err != nil {
+					logrus.Errorf("Error preparing repo %s", err)
+					return
+				}
 			},
 		},
 		{

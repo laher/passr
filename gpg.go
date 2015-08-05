@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 
 	"golang.org/x/crypto/openpgp"
@@ -27,7 +26,7 @@ func decryptEntity(e *openpgp.Entity, key string) error {
 	conn, err := gpgagent.NewConn()
 	switch err {
 	case gpgagent.ErrNoAgent:
-		fmt.Fprintf(os.Stderr, "Note: gpg-agent not found; resorting to on-demand password entry.\n")
+		logrus.Errorf("Note: gpg-agent not found; resorting to on-demand password entry.")
 	case nil:
 		defer conn.Close()
 		req := &gpgagent.PassphraseRequest{
@@ -49,10 +48,10 @@ func decryptEntity(e *openpgp.Entity, key string) error {
 			if err == gpgagent.ErrCancel {
 				return errors.New("failed to decrypt key; action canceled")
 			}
-			log.Printf("gpgagent: %v", err)
+			logrus.Errorf("gpgagent: %v", err)
 		}
 	default:
-		log.Printf("gpgagent: %v", err)
+		logrus.Errorf("gpgagent: %v", err)
 	}
 
 	pinReq := &pinentry.Request{Desc: desc, Prompt: "Passphrase"}
@@ -69,7 +68,7 @@ func decryptEntity(e *openpgp.Entity, key string) error {
 		if err == pinentry.ErrCancel {
 			return errors.New("failed to decrypt key; action canceled")
 		}
-		log.Printf("pinentry: %v", err)
+		logrus.Errorf("pinentry: %v", err)
 	}
 	return fmt.Errorf("failed to decrypt key %q", pubk.KeyIdShortString())
 }
@@ -82,7 +81,7 @@ func loadKeyringFile(kr string) (openpgp.EntityList, error) {
 	defer func() {
 		err := keyringFileBuffer.Close()
 		if err != nil {
-			log.Printf("Error closing file %s", err)
+			logrus.Errorf("Error closing file %s", err)
 		}
 	}()
 	return loadKeyring(keyringFileBuffer)
@@ -198,10 +197,12 @@ func Encrypt(index int, kring openpgp.EntityList, keyName string, isSigned bool,
 	return nil
 }
 
+/*
 func Dec(keys []openpgp.Key, symmetric bool) ([]byte, error) {
-	fmt.Printf("keys: %+v, symm: %v", keys, symmetric)
+	logrus.Infof("keys: %+v, symm: %v", keys, symmetric)
 	return []byte("passphrase"), nil
 }
+*/
 
 func Decrypt(index int, kring openpgp.EntityList, keyName string, isSigned bool, filename string, passphrase []byte) (string, error) {
 

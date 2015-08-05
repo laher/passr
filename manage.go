@@ -4,35 +4,35 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/Sirupsen/logrus"
 )
 
-func ListPasses(passDir string) {
+func ListPasses(passDir string) error {
 	d, err := os.Open(passDir)
 	if err != nil {
-		fmt.Printf("Error opening %s: %s", passDir, err)
-		fmt.Println("")
-		return
+		logrus.Errorf("Error opening %s: %s", passDir, err)
+		return err
 	}
 	names, err := d.Readdirnames(100)
 	if err != nil {
-		fmt.Printf("Error reading %s: %s", passDir, err)
-		fmt.Println("")
-		return
+		logrus.Errorf("Error reading %s: %s", passDir, err)
+		return err
 	}
+	logrus.Infof("Listing passes:")
 	for _, name := range names {
 		if strings.HasSuffix(name, ".gpg") {
-			fmt.Printf(" %s", strings.Replace(name, ".gpg", "", 1))
-			fmt.Println("")
+			fmt.Printf("%s\n", strings.Replace(name, ".gpg", "", 1))
 		}
 	}
+	return nil
 }
 
-func InitRepo(passDir string) {
+func InitRepo(passDir string) error {
 	err := os.MkdirAll(passDir, 0750)
 	if err != nil {
-		fmt.Printf("Error creating %s: %s", passDir, err)
-		fmt.Println("")
-		return
+		logrus.Errorf("Error creating %s: %s", passDir, err)
+		return err
 	}
-
+	return nil
 }
