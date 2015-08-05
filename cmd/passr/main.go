@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
-	"strings"
+
+	"github.com/laher/passr"
 )
 import "github.com/codegangsta/cli"
 
@@ -32,24 +34,7 @@ func main() {
 			Aliases: []string{"ls"},
 			Usage:   "list passwords",
 			Action: func(c *cli.Context) {
-				d, err := os.Open(passDir)
-				if err != nil {
-					fmt.Printf("Error opening %s: %s", passDir, err)
-					fmt.Println("")
-					return
-				}
-				names, err := d.Readdirnames(100)
-				if err != nil {
-					fmt.Printf("Error reading %s: %s", passDir, err)
-					fmt.Println("")
-					return
-				}
-				for _, name := range names {
-					if strings.HasSuffix(name, ".gpg") {
-						fmt.Printf(" %s", strings.Replace(name, ".gpg", "", 1))
-						fmt.Println("")
-					}
-				}
+				passr.ListPasses(passDir)
 			},
 		},
 		{
@@ -57,13 +42,7 @@ func main() {
 			Aliases: []string{"i"},
 			Usage:   "create a repo",
 			Action: func(c *cli.Context) {
-
-				err = os.MkdirAll(passDir, 0750)
-				if err != nil {
-					fmt.Printf("Error creating %s: %s", PassrDir, err)
-					fmt.Println("")
-					return
-				}
+				passr.InitRepo(passDir)
 			},
 		},
 		{
@@ -71,7 +50,7 @@ func main() {
 			Aliases: []string{"g", "gen"},
 			Usage:   "generate a password",
 			Action: func(c *cli.Context) {
-				p, err := generate(15, StdChars)
+				p, err := passr.GenerateDef()
 				if err != nil {
 					fmt.Printf("Error generating %s", err)
 					fmt.Println("")
@@ -87,7 +66,7 @@ func main() {
 			Usage:   "insert a password",
 			Action: func(c *cli.Context) {
 				publicKeyringFile := filepath.Join(hd, publicKeyring)
-				err := insert(publicKeyringFile, passDir, c.Args().First(), c.Args()[1])
+				err := passr.Insert(publicKeyringFile, passDir, c.Args().First(), c.Args()[1])
 				if err != nil {
 					fmt.Printf("Error inserting %s", err)
 					fmt.Println("")
@@ -98,12 +77,12 @@ func main() {
 			},
 		},
 		{
-			Name:    "get",
-			Aliases: []string{"g", "retrieve", "show"},
+			Name:    "read",
+			Aliases: []string{"r", "retrieve", "show"},
 			Usage:   "retrieve a password",
 			Action: func(c *cli.Context) {
 				secretKeyringFile := filepath.Join(hd, secretKeyring)
-				p, err := retrieve(secretKeyringFile, passDir, c.Args().First())
+				p, err := passr.Retrieve(secretKeyringFile, passDir, c.Args().First())
 				if err != nil {
 					fmt.Printf("Error retrieving %s", err)
 					fmt.Println("")
@@ -115,10 +94,12 @@ func main() {
 				fmt.Println("")
 			},
 		}}
-	app.Run(os.Args)
+	err = app.Run(os.Args)
+	if err != nil {
+		log.Printf("Error: %s", err)
+		os.Exit(1)
+	}
 }
 
 const secretKeyring = ".gnupg/secring.gpg"
 const publicKeyring = ".gnupg/pubring.gpg"
-
-var StdChars = []byte("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+,.?/:;{}[]`~")

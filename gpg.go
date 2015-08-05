@@ -6,12 +6,35 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 
 	"golang.org/x/crypto/openpgp"
 
 	"github.com/Sirupsen/logrus"
 )
+
+func loadKeyringFile(kr string) (openpgp.EntityList, error) {
+	keyringFileBuffer, err := os.Open(kr)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err := keyringFileBuffer.Close()
+		if err != nil {
+			log.Printf("Error closing file %s", err)
+		}
+	}()
+	return loadKeyring(keyringFileBuffer)
+}
+
+func loadKeyring(keyringReader io.Reader) (openpgp.EntityList, error) {
+	entityList, err := openpgp.ReadKeyRing(keyringReader)
+	if err != nil {
+		return entityList, err
+	}
+	return entityList, nil
+}
 
 func ReaderFromHex(s string) io.Reader {
 	data, err := hex.DecodeString(s)
@@ -22,7 +45,10 @@ func ReaderFromHex(s string) io.Reader {
 }
 
 func enc(i int, keyRingHex string, isSigned bool, filename string, message string, passphraseS string) error {
-	kring, _ := openpgp.ReadKeyRing(ReaderFromHex(keyRingHex))
+	kring, err := openpgp.ReadKeyRing(ReaderFromHex(keyRingHex))
+	if err != nil {
+		return err
+	}
 	return Encrypt(i, kring, isSigned, filename, message)
 }
 

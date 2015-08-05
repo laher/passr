@@ -22,14 +22,19 @@ var testEncryptionTests = []struct {
 		dsaElGamalTestKeysHex,
 		false,
 	},
-	{
-		dsaElGamalTestKeysHex,
-		true,
-	},
+	/*
+		{
+			dsaElGamalTestKeysHex,
+			true,
+		},
+	*/
 }
 
 func Test1(t *testing.T) {
 	for i, test := range testEncryptionTests {
-		enc(i, test.keyRingHex, test.isSigned, filename, message, "passphrase")
+		err := enc(i, test.keyRingHex, test.isSigned, filename, message, "passphrase")
+		if err != nil {
+			t.Errorf("Error: %s", err)
+		}
 	}
 }
