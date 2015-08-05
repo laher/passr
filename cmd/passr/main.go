@@ -7,9 +7,10 @@ import (
 	"os/user"
 	"path/filepath"
 
+	"github.com/Sirupsen/logrus"
+	"github.com/codegangsta/cli"
 	"github.com/laher/passr"
 )
-import "github.com/codegangsta/cli"
 
 const PassrDir = ".passr"
 
@@ -39,8 +40,8 @@ func main() {
 		},
 		{
 			Name:    "init",
-			Aliases: []string{"i"},
-			Usage:   "create a repo",
+			Aliases: []string{"prep"},
+			Usage:   "Prepare a repo",
 			Action: func(c *cli.Context) {
 				passr.InitRepo(passDir)
 			},
@@ -52,15 +53,13 @@ func main() {
 			Action: func(c *cli.Context) {
 				p, err := passr.GenerateDef()
 				if err != nil {
-					fmt.Printf("Error generating %s", err)
-					fmt.Println("")
+					logrus.Errorf("Error generating %s", err)
 					return
 				}
 				publicKeyringFile := filepath.Join(hd, publicKeyring)
-				err = passr.Insert(publicKeyringFile, passDir, c.Args().First(), p)
+				err = passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), p)
 				if err != nil {
-					fmt.Printf("Error inserting %s", err)
-					fmt.Println("")
+					logrus.Errorf("Error inserting %s", err)
 					return
 				}
 				fmt.Printf("Generated %s", p)
@@ -69,14 +68,13 @@ func main() {
 		},
 		{
 			Name:    "insert",
-			Aliases: []string{"ins", "put"},
+			Aliases: []string{"i", "ins", "put"},
 			Usage:   "insert a password",
 			Action: func(c *cli.Context) {
 				publicKeyringFile := filepath.Join(hd, publicKeyring)
-				err := passr.Insert(publicKeyringFile, passDir, c.Args().First(), c.Args()[1])
+				err := passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), c.Args()[1])
 				if err != nil {
-					fmt.Printf("Error inserting %s", err)
-					fmt.Println("")
+					logrus.Errorf("Error inserting %s", err)
 					return
 				}
 				fmt.Printf("Inserted %s", c.Args().First())
@@ -89,13 +87,12 @@ func main() {
 			Usage:   "retrieve a password",
 			Action: func(c *cli.Context) {
 				secretKeyringFile := filepath.Join(hd, secretKeyring)
-				p, err := passr.Retrieve(secretKeyringFile, passDir, c.Args().First())
+				p, err := passr.Retrieve(secretKeyringFile, keyName, passDir, c.Args().First())
 				if err != nil {
-					fmt.Printf("Error retrieving %s", err)
-					fmt.Println("")
+					logrus.Errorf("Error retrieving %s", err)
 					return
 				}
-				fmt.Printf("%s", p)
+				fmt.Print(p)
 			},
 		}}
 	err = app.Run(os.Args)
@@ -107,3 +104,4 @@ func main() {
 
 const secretKeyring = ".gnupg/secring.gpg"
 const publicKeyring = ".gnupg/pubring.gpg"
+const keyName = "78C56BB6"

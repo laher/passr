@@ -3,6 +3,7 @@ package passr
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,8 +12,67 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 
+	"camlistore.org/pkg/misc/gpgagent"
+	"camlistore.org/pkg/misc/pinentry"
 	"github.com/Sirupsen/logrus"
 )
+
+//from camlistore jsonsign
+func decryptEntity(e *openpgp.Entity, key string) error {
+	// TODO: syscall.Mlock a region and keep pass phrase in it.
+	pubk := &e.PrivateKey.PublicKey
+	desc := fmt.Sprintf("Need to unlock GPG key %s to use it for signing.",
+		pubk.KeyIdShortString())
+
+	conn, err := gpgagent.NewConn()
+	switch err {
+	case gpgagent.ErrNoAgent:
+		fmt.Fprintf(os.Stderr, "Note: gpg-agent not found; resorting to on-demand password entry.\n")
+	case nil:
+		defer conn.Close()
+		req := &gpgagent.PassphraseRequest{
+			CacheKey: "passr:decrypt:" + pubk.KeyIdShortString(),
+			Prompt:   "Passphrase",
+			Desc:     desc,
+		}
+		for tries := 0; tries < 2; tries++ {
+			pass, err := conn.GetPassphrase(req)
+			if err == nil {
+				err = e.PrivateKey.Decrypt([]byte(pass))
+				if err == nil {
+					return nil
+				}
+				req.Error = "Passphrase failed to decrypt: " + err.Error()
+				conn.RemoveFromCache(req.CacheKey)
+				continue
+			}
+			if err == gpgagent.ErrCancel {
+				return errors.New("failed to decrypt key; action canceled")
+			}
+			log.Printf("gpgagent: %v", err)
+		}
+	default:
+		log.Printf("gpgagent: %v", err)
+	}
+
+	pinReq := &pinentry.Request{Desc: desc, Prompt: "Passphrase"}
+	for tries := 0; tries < 2; tries++ {
+		pass, err := pinReq.GetPIN()
+		if err == nil {
+			err = e.PrivateKey.Decrypt([]byte(pass))
+			if err == nil {
+				return nil
+			}
+			pinReq.Error = "Passphrase failed to decrypt: " + err.Error()
+			continue
+		}
+		if err == pinentry.ErrCancel {
+			return errors.New("failed to decrypt key; action canceled")
+		}
+		log.Printf("pinentry: %v", err)
+	}
+	return fmt.Errorf("failed to decrypt key %q", pubk.KeyIdShortString())
+}
 
 func loadKeyringFile(kr string) (openpgp.EntityList, error) {
 	keyringFileBuffer, err := os.Open(kr)
@@ -44,37 +104,46 @@ func ReaderFromHex(s string) io.Reader {
 	return bytes.NewBuffer(data)
 }
 
-func enc(i int, keyRingHex string, isSigned bool, filename string, message string, passphraseS string) error {
+func enc(i int, keyRingHex string, keyName string, isSigned bool, filename string, message string, passphraseS string) error {
 	kring, err := openpgp.ReadKeyRing(ReaderFromHex(keyRingHex))
 	if err != nil {
 		return err
 	}
-	return Encrypt(i, kring, isSigned, filename, message)
+	return Encrypt(i, kring, keyName, isSigned, filename, message)
 }
 
-func DecryptPw(kring openpgp.EntityList, passphrase []byte) error {
+func DecryptPw(kring openpgp.EntityList, keyName string, passphrase []byte) error {
 	for _, entity := range kring {
-		if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
-			err := entity.PrivateKey.Decrypt(passphrase)
-			if err != nil {
-				logrus.Errorf("failed to decrypt key")
-				return err
-			}
-		}
-		for _, subkey := range entity.Subkeys {
-			if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
-				err := subkey.PrivateKey.Decrypt(passphrase)
+		pubk := entity.PrivateKey.PublicKey
+		logrus.Infof("Key: %s", pubk.KeyIdShortString())
+		if pubk.KeyIdShortString() == keyName {
+			if entity.PrivateKey != nil && entity.PrivateKey.Encrypted {
+				err := entity.PrivateKey.Decrypt(passphrase)
 				if err != nil {
-					logrus.Errorf("failed to decrypt subkey")
+					logrus.Errorf("failed to decrypt key")
 					return err
 				}
+			}
+			for _, subkey := range entity.Subkeys {
+
+				subpubk := subkey.PrivateKey.PublicKey
+				logrus.Infof("SubKey: %s", subpubk.KeyIdShortString())
+				//	if subpubk.KeyIdShortString() == keyName {
+				if subkey.PrivateKey != nil && subkey.PrivateKey.Encrypted {
+					err := subkey.PrivateKey.Decrypt(passphrase)
+					if err != nil {
+						logrus.Errorf("failed to decrypt subkey")
+						return err
+					}
+				}
+				//	}
 			}
 		}
 	}
 	return nil
 }
 
-func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, message string) error {
+func Encrypt(index int, kring openpgp.EntityList, keyName string, isSigned bool, filename string, message string) error {
 
 	var signed *openpgp.Entity
 	if isSigned {
@@ -87,7 +156,25 @@ func Encrypt(index int, kring openpgp.EntityList, isSigned bool, filename string
 		logrus.Errorf("#%d: error in Create: %s", index, err)
 		return err
 	}
-	w, err := openpgp.Encrypt(f, kring[:1], signed, nil /* no hints */, nil)
+	whichKey := openpgp.EntityList{}
+	if keyName == "" {
+		whichKey = kring[:1]
+	} else {
+		for _, entity := range kring {
+			if entity.PrivateKey != nil {
+				pubk := entity.PrivateKey.PublicKey
+				logrus.Infof("Key: %s", pubk.KeyIdShortString())
+				if pubk.KeyIdShortString() == keyName {
+					whichKey = append(whichKey, entity)
+				}
+			} else {
+				if entity.PrimaryKey.KeyIdShortString() == keyName {
+					whichKey = append(whichKey, entity)
+				}
+			}
+		}
+	}
+	w, err := openpgp.Encrypt(f, whichKey, signed, nil /* no hints */, nil)
 	if err != nil {
 		logrus.Errorf("#%d: error in Encrypt: %s", index, err)
 		return err
@@ -116,9 +203,9 @@ func Dec(keys []openpgp.Key, symmetric bool) ([]byte, error) {
 	return []byte("passphrase"), nil
 }
 
-func Decrypt(index int, kring openpgp.EntityList, isSigned bool, filename string, passphrase []byte) (string, error) {
+func Decrypt(index int, kring openpgp.EntityList, keyName string, isSigned bool, filename string, passphrase []byte) (string, error) {
 
-	err := DecryptPw(kring, passphrase)
+	err := DecryptPw(kring, keyName, passphrase)
 	if err != nil {
 		return "", err
 	}

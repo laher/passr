@@ -10,7 +10,7 @@ import (
 	"golang.org/x/crypto/openpgp"
 )
 
-func Retrieve(secretKeyringFile, fdir, name string) (string, error) {
+func Retrieve(secretKeyringFile, keyName, fdir, name string) (string, error) {
 	filename := filepath.Join(fdir, fmt.Sprintf("%s.gpg", name))
 	//keyRingHex := passr.TestKeys1And2PrivateHex
 	//kring, _ := openpgp.ReadKeyRing(passr.ReaderFromHex(keyRingHex))
@@ -31,6 +31,6 @@ func Retrieve(secretKeyringFile, fdir, name string) (string, error) {
 	//passphrase := []byte("passphrase")
 	log.Println("Enter passphrase:")
 	passphrase := gopass.GetPasswd()
-	p, err := Decrypt(0, kring, false, filename, passphrase)
+	p, err := Decrypt(0, kring, keyName, false, filename, passphrase)
 	return p, err
 }

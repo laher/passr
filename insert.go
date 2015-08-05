@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/openpgp"
 )
 
-func Insert(publicKeyringFile, fdir, name, pass string) error {
+func Insert(publicKeyringFile, keyName, fdir, name, pass string) error {
 	message := pass
 	filename := filepath.Join(fdir, fmt.Sprintf("%s.gpg", name))
 	keyringFileBuffer, err := os.Open(publicKeyringFile)
@@ -26,6 +26,6 @@ func Insert(publicKeyringFile, fdir, name, pass string) error {
 	if err != nil {
 		return err
 	}
-	err = Encrypt(0, kring, false, filename, message)
+	err = Encrypt(0, kring, keyName, false, filename, message)
 	return err
 }
