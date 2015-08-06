@@ -12,7 +12,6 @@ import (
 	"github.com/laher/passr"
 )
 
-//	fmt.Printf("Password: ")
 //	pass := gopass.GetPasswd() // Silent, for *'s use gopass.GetPasswdMasked()
 // Do something with pass
 func main() {
@@ -21,11 +20,10 @@ func main() {
 	app.Usage = "password recollector"
 	u, err := user.Current()
 	if err != nil {
-		fmt.Println("Error getting current user: %s", err)
+		logrus.Errorf("Error getting current user: %s", err)
+		return
 	}
 	hd := u.HomeDir
-	//fmt.Printf("dir: %s", f)
-	//fmt.Println("")
 	config := passr.DefaultConfig()
 	passDir := filepath.Join(u.HomeDir, config.PassDir)
 	publicKeyringFile := filepath.Join(hd, config.PubKeyring)
@@ -63,7 +61,7 @@ func main() {
 			Action: func(c *cli.Context) {
 				p, err := passr.GenerateDef()
 				if err != nil {
-					logrus.Errorf("Error generating %s", err)
+					logrus.Errorf("Error generating password: %s", err)
 					return
 				}
 				err = passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), p)
@@ -71,8 +69,8 @@ func main() {
 					logrus.Errorf("Error inserting password: %s", err)
 					return
 				}
-				fmt.Printf("Generated %s", p)
-				fmt.Println("")
+				logrus.Infof("Generated password:")
+				fmt.Print(p)
 			},
 		},
 		{
@@ -89,8 +87,7 @@ func main() {
 					logrus.Errorf("Error inserting password: %s", err)
 					return
 				}
-				fmt.Printf("Inserted %s", c.Args().First())
-				fmt.Println("")
+				logrus.Infof("Inserted password: %s", c.Args().First())
 			},
 		},
 		{
@@ -100,10 +97,23 @@ func main() {
 			Action: func(c *cli.Context) {
 				p, err := passr.Retrieve(secretKeyringFile, keyName, passDir, c.Args().First())
 				if err != nil {
-					logrus.Errorf("Error retrieving %s", err)
+					logrus.Errorf("Error retrieving password: %s", err)
 					return
 				}
 				fmt.Print(p)
+			},
+		},
+		{
+			Name:    "delete",
+			Aliases: []string{"del", "d"},
+			Usage:   "delete a password",
+			Action: func(c *cli.Context) {
+				err := passr.Delete(passDir, c.Args().First())
+				if err != nil {
+					logrus.Errorf("Error retrieving key: %s", err)
+					return
+				}
+				logrus.Infof("Deleted password: %s", c.Args().First())
 			},
 		}}
 	err = app.Run(os.Args)
