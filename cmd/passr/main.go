@@ -39,7 +39,7 @@ func main() {
 			Action: func(c *cli.Context) {
 				err := passr.ListPasses(passDir)
 				if err != nil {
-					logrus.Errorf("Error listing passes %s", err)
+					logrus.Errorf("Error listing passes: %s", err)
 					return
 				}
 			},
@@ -51,7 +51,7 @@ func main() {
 			Action: func(c *cli.Context) {
 				err := passr.InitRepo(passDir)
 				if err != nil {
-					logrus.Errorf("Error preparing repo %s", err)
+					logrus.Errorf("Error preparing repo: %s", err)
 					return
 				}
 			},
@@ -68,7 +68,7 @@ func main() {
 				}
 				err = passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), p)
 				if err != nil {
-					logrus.Errorf("Error inserting %s", err)
+					logrus.Errorf("Error inserting password: %s", err)
 					return
 				}
 				fmt.Printf("Generated %s", p)
@@ -80,9 +80,13 @@ func main() {
 			Aliases: []string{"i", "ins", "put"},
 			Usage:   "insert a password",
 			Action: func(c *cli.Context) {
+				if len(c.Args()) < 2 {
+					logrus.Errorf("Password required")
+					return
+				}
 				err := passr.Insert(publicKeyringFile, keyName, passDir, c.Args().First(), c.Args()[1])
 				if err != nil {
-					logrus.Errorf("Error inserting %s", err)
+					logrus.Errorf("Error inserting password: %s", err)
 					return
 				}
 				fmt.Printf("Inserted %s", c.Args().First())

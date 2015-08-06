@@ -13,6 +13,14 @@ import (
 func Insert(publicKeyringFile, keyName, fdir, name, pass string) error {
 	message := pass
 	filename := filepath.Join(fdir, fmt.Sprintf("%s.gpg", name))
+	_, err := os.Stat(filename)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
+		return fmt.Errorf("file %s exists", filename)
+	}
 	keyringFileBuffer, err := os.Open(publicKeyringFile)
 	if err != nil {
 		return err
